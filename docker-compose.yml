@@ -1,0 +1,48 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  respiratory-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=models/best_model.h5
+      - WORKERS=4
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 1
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - respiratory-api
+    deploy:
+      replicas: 1
+
+  locust:
+    build: 
+      context: .
+      dockerfile: Dockerfile.locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./locustfile.py:/app/locustfile.py
+    depends_on:
+      - respiratory-api
+    environment:
+      - LOCUST_HOST=http://nginx
